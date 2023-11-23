@@ -8,9 +8,15 @@
 
 #include "imgui/imgui.h"
 
+// getting the right analog stick of an xbox controller on windows
 #include <Windows.h>
 #include <Xinput.h>
 #include <limits>
+
+// getting the right analog stick of a ps4(5?) controller on windows
+#include <dinput.h>
+
+// todo: add dpad?
 
 #define RED ImColor(255, 0, 0, 255)
 #define BLUE ImColor(0, 0, 255, 255)
