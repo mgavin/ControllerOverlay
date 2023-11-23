@@ -1,6 +1,6 @@
 #include "ControllerOverlay.h"
 
-BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.5", 0)
+BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.6", 0)
 
 /*
 	https://docs.unrealengine.com/udk/Three/KeyBinds.html
@@ -67,6 +67,7 @@ void ControllerOverlay::onLoad()
 			inputs["XboxTypeS_LeftTrigger"] = { 0, false, WHITE, "L2" };
 			inputs["XboxTypeS_RightTrigger"] = { 0, false, WHITE, "R2" };
 			inputs["XboxTypeS_LeftThumbStick"] = { 0, false, GREY, "L3" };
+			inputs["XboxTypeS_RightThumbStick"] = { 0, false, GREY, "R3" };
 		}
 
 		else {
@@ -81,6 +82,7 @@ void ControllerOverlay::onLoad()
 			inputs["XboxTypeS_LeftTrigger"] = { 0, false, WHITE, "LT" };
 			inputs["XboxTypeS_RightTrigger"] = { 0, false, WHITE, "RT" };
 			inputs["XboxTypeS_LeftThumbStick"] = { 0, false, GREY, "LS" };
+			inputs["XboxTypeS_RightThumbStick"] = { 0, false, GREY, "RS" };
 		}
 
 		for (const std::pair<const std::string, Input>& input : inputs) {
@@ -151,6 +153,22 @@ void ControllerOverlay::writeCfg()
 	configurationFile.close();
 }
 
+bool ControllerOverlay::isControllerConnected() {
+	std::memset(&_controllerState, 0, sizeof(XINPUT_STATE));
+	DWORD res = XInputGetState(0, &_controllerState); // local player player 1 from first parameter being 0
+
+	if (res == ERROR_SUCCESS)
+		return true;
+	else
+		return false;
+}
+
+XINPUT_STATE ControllerOverlay::getState() {
+	std::memset(&_controllerState, 0, sizeof(XINPUT_STATE));
+	XInputGetState(0, &_controllerState); // local player player 1 from first parameter being 0
+	return _controllerState;
+}
+
 void ControllerOverlay::onTick(std::string eventName)
 {
 	if (!gameWrapper->IsInCustomTraining()) {
@@ -162,12 +180,15 @@ void ControllerOverlay::onTick(std::string eventName)
 			}
 
 			CarWrapper car = gameWrapper->GetLocalCar();
+			
+			if (isControllerConnected()) {
+				rstickx = static_cast<float>(_controllerState.Gamepad.sThumbRX) / SHRT_MAX;
+				rsticky = -1.0 * static_cast<float>(_controllerState.Gamepad.sThumbRY) / SHRT_MAX;
+			}
 
 			if (!car.IsNull()) {
 				controllerInput = car.GetInput();
-			}
-
-			else {
+			} else {
 				controllerInput.Steer = 0;
 				controllerInput.Pitch = 0;
 			}
@@ -333,6 +354,15 @@ void ControllerOverlay::RenderImGui()
 
 	drawList->AddCircleFilled(ImVec2(leftStickCenter.x + (controllerInput.Steer * 8 * scale), leftStickCenter.y + (controllerInput.Pitch * 8 * scale)), 20 * scale, (inputs["XboxTypeS_LeftThumbStick"].pressed ? GREY : WHITE), 32);
 	drawList->AddCircleFilled(ImVec2(leftStickCenter.x + (controllerInput.Steer * 8 * scale), leftStickCenter.y + (controllerInput.Pitch * 8 * scale)), 16 * scale, (inputs["XboxTypeS_LeftThumbStick"].pressed ? DARKGREY : GREY), 32);
+
+	float rightStickRadius = 32 * scale;
+	ImVec2 rightStickCenter = ImVec2(leftStickCenter.x + 56 * scale, leftStickCenter.y);
+
+	drawList->AddCircle(rightStickCenter, 24 * scale, WHITE, 32, 2 * scale);
+
+	drawList->AddCircleFilled(ImVec2(rightStickCenter.x + (rstickx * 8 * scale), rightStickCenter.y + (rsticky * 8 * scale)), 20 * scale, (inputs["XboxTypeS_RightThumbStick"].pressed ? GREY : WHITE), 32);
+	drawList->AddCircleFilled(ImVec2(rightStickCenter.x + (rstickx * 8 * scale), rightStickCenter.y + (rsticky * 8 * scale)), 16 * scale, (inputs["XboxTypeS_RightThumbStick"].pressed ? DARKGREY : GREY), 32);
+
 
 	float buttonRadius = 12 * scale;
 	ImVec2 buttonsCenter = ImVec2(leftStickCenter.x + 128 * scale, leftStickCenter.y);

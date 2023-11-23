@@ -1,11 +1,16 @@
 #pragma comment(lib, "pluginsdk.lib")
 
 #include <fstream>
+#include <format>
 
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
 
 #include "imgui/imgui.h"
+
+#include <Windows.h>
+#include <Xinput.h>
+#include <limits>
 
 #define RED ImColor(255, 0, 0, 255)
 #define BLUE ImColor(0, 0, 255, 255)
@@ -57,4 +62,12 @@ public:
 
 	std::map<std::string, Input> inputs;
 	ControllerInput controllerInput;
+	float rstickx, rsticky;
+
+	// WORKS FOR XBOX CONTROLLER
+	XINPUT_STATE _controllerState;
+	bool isControllerConnected();
+	XINPUT_STATE getState();
+
+	// NEED TO DO FOR PS4 CONTROLLER / DirectInput (instead of XInput)
 };
