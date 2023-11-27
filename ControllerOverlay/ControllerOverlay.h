@@ -5,6 +5,7 @@
 
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
+#include "bakkesmod/wrappers/GameWrapper.h"
 
 #include "imgui/imgui.h"
 
@@ -16,7 +17,9 @@
 // getting the right analog stick of a ps4(5?) controller on windows
 #include <dinput.h>
 
-// todo: add dpad?
+// TODO: ADD DPAD
+// TODO: ADD DIFFERENTIATION BETWEEN DINPUT AND XINPUT
+// MAYBE COMPLETELY MOVE OVER TO DINPUT? NEED DATA FORMATS :rolling_eyes:
 
 #define RED ImColor(255, 0, 0, 255)
 #define BLUE ImColor(0, 0, 255, 255)
@@ -69,11 +72,12 @@ public:
 	std::map<std::string, Input> inputs;
 	ControllerInput controllerInput;
 	float rstickx, rsticky;
+	float rtrigger, ltrigger;
 
 	// WORKS FOR XBOX CONTROLLER
-	XINPUT_STATE _controllerState;
-	bool isControllerConnected();
-	XINPUT_STATE getState();
+	XINPUT_STATE xboxControllerState;
 
 	// NEED TO DO FOR PS4 CONTROLLER / DirectInput (instead of XInput)
+	HINSTANCE pluginInstance;
+	std::shared_ptr<IDirectInput8> DIinterface;
 };
