@@ -1,7 +1,7 @@
 #pragma comment(lib, "pluginsdk.lib")
 
-#include <fstream>
 #include <format>
+#include <fstream>
 
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -17,7 +17,6 @@
 // getting the right analog stick of a ps4(5?) controller on windows
 #include <dinput.h>
 
-// TODO: ADD DPAD
 // TODO: ADD DIFFERENTIATION BETWEEN DINPUT AND XINPUT
 // MAYBE COMPLETELY MOVE OVER TO DINPUT? NEED DATA FORMATS :rolling_eyes:
 
@@ -33,14 +32,13 @@
 #define PURPLE ImColor(128, 0, 128, 255)
 
 struct Input {
-	int index;
-	bool pressed;
-	ImColor color;
+	int					index;
+	bool				pressed;
+	ImColor			color;
 	std::string name;
 };
 
-class ControllerOverlay : public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginWindow
-{
+class ControllerOverlay : public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginWindow {
 public:
 	void onLoad();
 	void onUnload();
@@ -49,35 +47,40 @@ public:
 
 	void onTick(std::string eventName);
 
-	void Render();
-	void RenderImGui();
+	void				Render();
+	void				RenderImGui();
 	std::string GetMenuName();
 	std::string GetMenuTitle();
-	void SetImGuiContext(uintptr_t ctx);
-	bool ShouldBlockInput();
-	bool IsActiveOverlay();
-	void OnOpen();
-	void OnClose();
+	void				SetImGuiContext(uintptr_t ctx);
+	bool				ShouldBlockInput();
+	bool				IsActiveOverlay();
+	void				OnOpen();
+	void				OnClose();
 
 	bool renderControllerOverlay = false;
-	bool renderSettings = false;
+	bool renderSettings					 = false;
+	bool overlayPositionLocked	 = false;
 
-	std::string configurationFilePath = "./bakkesmod/cfg/controlleroverlay.cfg";
+	// 	std::string configurationFilePath = std::string(BAKKESMOD_DIR) + "/cfg/controlleroverlay.cfg";
+	std::string configurationFilePath = gameWrapper->GetBakkesModPath().string() + "/cfg/controlleroverlay.cfg";
 
-	bool titleBar = true;
-	float transparency = 1.0f;
-	int type = 0;
-	int size = 0;
+	bool	titleBar			 = true;
+	bool	showRightStick = true;
+	bool	showDPad			 = true;
+	float transparency	 = 1.0f;
+	int		type					 = 0;
+	int		size					 = 0;
 
 	std::map<std::string, Input> inputs;
-	ControllerInput controllerInput;
-	float rstickx, rsticky;
-	float rtrigger, ltrigger;
+	ControllerInput							 controllerInput;
+	float												 rstickx, rsticky;
+	float												 rtrigger, ltrigger;
+	float												 lstickx, lsticky;
 
 	// WORKS FOR XBOX CONTROLLER
 	XINPUT_STATE xboxControllerState;
 
 	// NEED TO DO FOR PS4 CONTROLLER / DirectInput (instead of XInput)
-	HINSTANCE pluginInstance;
+	HINSTANCE											 pluginInstance;
 	std::shared_ptr<IDirectInput8> DIinterface;
 };

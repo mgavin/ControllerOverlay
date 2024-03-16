@@ -1,6 +1,7 @@
 #include "ControllerOverlay.h"
+#include <format>
 
-BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.7.1", 0)
+BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.7.2.mg", 0)
 
 /*
 				https://docs.unrealengine.com/udk/Three/KeyBinds.html
@@ -44,6 +45,7 @@ void ControllerOverlay::onLoad() {
 	cvarManager->removeCvar("controllerTransparency");
 	cvarManager->removeCvar("controllerType");
 	cvarManager->removeCvar("controllerSize");
+	cvarManager->removeCvar("controllerLockOverlayPosition");
 
 	gameWrapper->SetTimeout(
 		[this](GameWrapper * gameWrapper) { cvarManager->executeCommand("togglemenu " + GetMenuName()); }, 1);
@@ -90,9 +92,16 @@ void ControllerOverlay::onLoad() {
 			writeCfg();
 		});
 
+	cvarManager->registerCvar("controllerLockOverlayPosition", "false")
+		.addOnValueChanged([this](std::string old, CVarWrapper now) {
+			overlayPositionLocked = now.getBoolValue();
+			writeCfg();
+		});
+
 	cvarManager->registerCvar("controllerType", "xbox").addOnValueChanged([this](std::string old, CVarWrapper now) {
 		if (now.getStringValue() == "ps4") {
-			type																= 1;
+			type = 1;
+
 			inputs["XboxTypeS_DPad_Left"]				= {0, false, WHITE, "DLEFT"};
 			inputs["XboxTypeS_DPad_Right"]			= {0, false, WHITE, "DRIGHT"};
 			inputs["XboxTypeS_DPad_Up"]					= {0, false, WHITE, "DUP"};
@@ -191,13 +200,17 @@ void ControllerOverlay::writeCfg() {
 
 	configurationFile << "\n";
 	configurationFile << "controllerSize \"" + std::to_string(size) + "\"";
+	configurationFile << "\n";
+	configurationFile << "controllerLockOverlayPosition \"" + std::to_string(overlayPositionLocked) + "\"";
 
 	configurationFile.close();
 }
 
 void ControllerOverlay::onTick(std::string eventName) {
-	if (!gameWrapper->IsInCustomTraining()) {
-		if (gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame()) {
+	// if (!gameWrapper->IsInCustomTraining()) {
+	// if (gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame()) {
+	{
+		{
 			for (const std::pair<const std::string, Input> & input : inputs) {
 				if (input.second.index > 0) {
 					inputs[input.first].pressed = gameWrapper->IsKeyPressed(input.second.index);
@@ -226,9 +239,11 @@ void ControllerOverlay::onTick(std::string eventName) {
 
 			if (!car.IsNull()) {
 				controllerInput = car.GetInput();
+				lstickx					= controllerInput.Steer;
+				lsticky					= controllerInput.Pitch;
 			} else {
-				controllerInput.Steer = 0;
-				controllerInput.Pitch = 0;
+				lstickx = static_cast<float>(xboxControllerState.Gamepad.sThumbLX) / SHRT_MAX;
+				lsticky = -1.0f * static_cast<float>(xboxControllerState.Gamepad.sThumbLY) / SHRT_MAX;
 			}
 		}
 	}
@@ -240,8 +255,8 @@ void ControllerOverlay::Render() {
 
 		return;
 	}
-
-	if (!gameWrapper->IsInCustomTraining()) {
+	ControllerOverlay::RenderImGui();
+	/*if (!gameWrapper->IsInCustomTraining()) {
 		if (gameWrapper->IsInOnlineGame()) {
 			ServerWrapper server = gameWrapper->GetOnlineGame();
 
@@ -261,7 +276,7 @@ void ControllerOverlay::Render() {
 				}
 			}
 		}
-	}
+	}*/
 }
 
 void ControllerOverlay::RenderImGui() {
@@ -274,6 +289,9 @@ void ControllerOverlay::RenderImGui() {
 								 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
 
 		ImGui::Checkbox("Titlebar", &titleBar);
+		ImGui::Checkbox("Show Right Stick", &showRightStick);
+		ImGui::Checkbox("Show DPad", &showDPad);
+		ImGui::Checkbox("Lock Overlay Position", &overlayPositionLocked);
 		ImGui::SliderFloat("Transparency", &transparency, 0.f, 1.f, "%.2f");
 		const char * types[] = {"Xbox", "PS4"};
 		ImGui::Combo("Type", &type, types, IM_ARRAYSIZE(types));
@@ -302,8 +320,10 @@ void ControllerOverlay::RenderImGui() {
 	}
 
 	ImGui::SetNextWindowSize(windowSize);
-
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize;
+	if (overlayPositionLocked) {
+		windowFlags |= ImGuiWindowFlags_NoMove;
+	}
 
 	if (!titleBar) {
 		windowFlags = windowFlags | ImGuiWindowFlags_NoTitleBar;
@@ -338,14 +358,21 @@ void ControllerOverlay::RenderImGui() {
 	ImVec2 buttonRTPosition = ImVec2(p.x + 128 * scale, p.y);	 // Right Trigger / R2
 
 	if (inputs["XboxTypeS_LeftTrigger"].pressed) {
+		drawList->AddRect(buttonLTPosition,
+											ImVec2(buttonLTPosition.x + buttonWidth, buttonLTPosition.y + buttonHeight),
+											WHITE,
+											8,
+											ImDrawCornerFlags_TopLeft,
+											2 * scale);
 		int rgb = static_cast<int>(255.0f * ltrigger);
 		drawList->AddRectFilled(buttonLTPosition,
 														ImVec2(buttonLTPosition.x + buttonWidth, buttonLTPosition.y + buttonHeight),
 														ImColor(rgb, rgb, rgb, 255),
 														8,
 														ImDrawCornerFlags_TopLeft);
+		int rgb_txt = 255 - rgb;
 		drawList->AddText(ImVec2(buttonLTPosition.x + 18 * scale, buttonLTPosition.y + 1 * scale),
-											BLACK,
+											ImColor(rgb_txt, rgb_txt, rgb_txt, 255),
 											inputs["XboxTypeS_LeftTrigger"].name.c_str());
 	}
 
@@ -362,14 +389,21 @@ void ControllerOverlay::RenderImGui() {
 	}
 
 	if (inputs["XboxTypeS_RightTrigger"].pressed) {
+		drawList->AddRect(buttonRTPosition,
+											ImVec2(buttonRTPosition.x + buttonWidth, buttonRTPosition.y + buttonHeight),
+											WHITE,
+											8,
+											ImDrawCornerFlags_TopRight,
+											2 * scale);
 		int rgb = static_cast<int>(255.0f * rtrigger);
 		drawList->AddRectFilled(buttonRTPosition,
 														ImVec2(buttonRTPosition.x + buttonWidth, buttonRTPosition.y + buttonHeight),
 														ImColor(rgb, rgb, rgb, 255),
 														8,
 														ImDrawCornerFlags_TopRight);
+		int rgb_txt = 255 - rgb;
 		drawList->AddText(ImVec2(buttonRTPosition.x + 18 * scale, buttonRTPosition.y + 1 * scale),
-											BLACK,
+											ImColor(rgb_txt, rgb_txt, rgb_txt, 255),
 											inputs["XboxTypeS_RightTrigger"].name.c_str());
 	}
 
@@ -433,68 +467,69 @@ void ControllerOverlay::RenderImGui() {
 	}
 	/* END DRAW BUMPERS */
 	/* DRAW DPAD */
-	ImVec2 dpadCenter = ImVec2(p.x + 88 * scale, p.y - 4 * scale);
-	// TEST1
-	drawList->AddCircle(dpadCenter, 3.0, GREY, 32, 2 * scale);
+	if (showDPad) {
+		ImVec2 dpadCenter = ImVec2(p.x + 88 * scale, p.y - 4 * scale);
+		drawList->AddCircle(dpadCenter, 3.0, GREY, 32, 2 * scale);
 
-	// up
-	const ImVec2 up[] = {
-		ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y - 10 * scale),
-		ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y - 20 * scale),
-		ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y - 20 * scale),
-		ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y - 10 * scale),
-		ImVec2(dpadCenter.x, dpadCenter.y - 4 * scale),
-	};
+		// up
+		const ImVec2 up[] = {
+			ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y - 10 * scale),
+			ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y - 20 * scale),
+			ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y - 20 * scale),
+			ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y - 10 * scale),
+			ImVec2(dpadCenter.x, dpadCenter.y - 4 * scale),
+		};
 
-	if (inputs["XboxTypeS_DPad_Up"].pressed) {
-		drawList->AddConvexPolyFilled(up, 5, WHITE);
-	} else {
-		drawList->AddPolyline(up, 5, WHITE, true, 3.0f);
-	}
+		if (inputs["XboxTypeS_DPad_Up"].pressed) {
+			drawList->AddConvexPolyFilled(up, 5, WHITE);
+		} else {
+			drawList->AddPolyline(up, 5, WHITE, true, 3.0f);
+		}
 
-	// right
-	const ImVec2 right[] = {
-		ImVec2(dpadCenter.x + 10 * scale, dpadCenter.y - 5 * scale),
-		ImVec2(dpadCenter.x + 20 * scale, dpadCenter.y - 5 * scale),
-		ImVec2(dpadCenter.x + 20 * scale, dpadCenter.y + 5 * scale),
-		ImVec2(dpadCenter.x + 10 * scale, dpadCenter.y + 5 * scale),
-		ImVec2(dpadCenter.x + 4 * scale, dpadCenter.y),
-	};
+		// right
+		const ImVec2 right[] = {
+			ImVec2(dpadCenter.x + 10 * scale, dpadCenter.y - 5 * scale),
+			ImVec2(dpadCenter.x + 20 * scale, dpadCenter.y - 5 * scale),
+			ImVec2(dpadCenter.x + 20 * scale, dpadCenter.y + 5 * scale),
+			ImVec2(dpadCenter.x + 10 * scale, dpadCenter.y + 5 * scale),
+			ImVec2(dpadCenter.x + 4 * scale, dpadCenter.y),
+		};
 
-	if (inputs["XboxTypeS_DPad_Right"].pressed) {
-		drawList->AddConvexPolyFilled(right, 5, WHITE);
-	} else {
-		drawList->AddPolyline(right, 5, WHITE, true, 3.0f);
-	}
+		if (inputs["XboxTypeS_DPad_Right"].pressed) {
+			drawList->AddConvexPolyFilled(right, 5, WHITE);
+		} else {
+			drawList->AddPolyline(right, 5, WHITE, true, 3.0f);
+		}
 
-	// down
-	const ImVec2 down[] = {
-		ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y + 10 * scale),
-		ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y + 20 * scale),
-		ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y + 20 * scale),
-		ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y + 10 * scale),
-		ImVec2(dpadCenter.x, dpadCenter.y + 4 * scale),
-	};
+		// down
+		const ImVec2 down[] = {
+			ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y + 10 * scale),
+			ImVec2(dpadCenter.x - 5 * scale, dpadCenter.y + 20 * scale),
+			ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y + 20 * scale),
+			ImVec2(dpadCenter.x + 5 * scale, dpadCenter.y + 10 * scale),
+			ImVec2(dpadCenter.x, dpadCenter.y + 4 * scale),
+		};
 
-	if (inputs["XboxTypeS_DPad_Down"].pressed) {
-		drawList->AddConvexPolyFilled(down, 5, WHITE);
-	} else {
-		drawList->AddPolyline(down, 5, WHITE, true, 3.0f);
-	}
+		if (inputs["XboxTypeS_DPad_Down"].pressed) {
+			drawList->AddConvexPolyFilled(down, 5, WHITE);
+		} else {
+			drawList->AddPolyline(down, 5, WHITE, true, 3.0f);
+		}
 
-	// left
-	const ImVec2 left[] = {
-		ImVec2(dpadCenter.x - 10 * scale, dpadCenter.y - 5 * scale),
-		ImVec2(dpadCenter.x - 20 * scale, dpadCenter.y - 5 * scale),
-		ImVec2(dpadCenter.x - 20 * scale, dpadCenter.y + 5 * scale),
-		ImVec2(dpadCenter.x - 10 * scale, dpadCenter.y + 5 * scale),
-		ImVec2(dpadCenter.x - 4 * scale, dpadCenter.y),
-	};
+		// left
+		const ImVec2 left[] = {
+			ImVec2(dpadCenter.x - 10 * scale, dpadCenter.y - 5 * scale),
+			ImVec2(dpadCenter.x - 20 * scale, dpadCenter.y - 5 * scale),
+			ImVec2(dpadCenter.x - 20 * scale, dpadCenter.y + 5 * scale),
+			ImVec2(dpadCenter.x - 10 * scale, dpadCenter.y + 5 * scale),
+			ImVec2(dpadCenter.x - 4 * scale, dpadCenter.y),
+		};
 
-	if (inputs["XboxTypeS_DPad_Left"].pressed) {
-		drawList->AddConvexPolyFilled(left, 5, WHITE);
-	} else {
-		drawList->AddPolyline(left, 5, WHITE, true, 3.0f);
+		if (inputs["XboxTypeS_DPad_Left"].pressed) {
+			drawList->AddConvexPolyFilled(left, 5, WHITE);
+		} else {
+			drawList->AddPolyline(left, 5, WHITE, true, 3.0f);
+		}
 	}
 	/* END DRAW DPAD */
 
@@ -507,16 +542,16 @@ void ControllerOverlay::RenderImGui() {
 
 	drawList->AddCircle(leftStickCenter, 24 * scale, WHITE, 32, 2 * scale);
 
-	drawList->AddCircleFilled(ImVec2(leftStickCenter.x + (controllerInput.Steer * 8 * scale),
-																	 leftStickCenter.y + (controllerInput.Pitch * 8 * scale)),
-														20 * scale,
-														(inputs["XboxTypeS_LeftThumbStick"].pressed ? GREY : WHITE),
-														32);
-	drawList->AddCircleFilled(ImVec2(leftStickCenter.x + (controllerInput.Steer * 8 * scale),
-																	 leftStickCenter.y + (controllerInput.Pitch * 8 * scale)),
-														16 * scale,
-														(inputs["XboxTypeS_LeftThumbStick"].pressed ? DARKGREY : GREY),
-														32);
+	drawList->AddCircleFilled(
+		ImVec2(leftStickCenter.x + (lstickx * 8 * scale), leftStickCenter.y + (lsticky * 8 * scale)),
+		20 * scale,
+		(inputs["XboxTypeS_LeftThumbStick"].pressed ? GREY : WHITE),
+		32);
+	drawList->AddCircleFilled(
+		ImVec2(leftStickCenter.x + (lstickx * 8 * scale), leftStickCenter.y + (lsticky * 8 * scale)),
+		16 * scale,
+		(inputs["XboxTypeS_LeftThumbStick"].pressed ? DARKGREY : GREY),
+		32);
 
 	// set up position of right analog stick
 	float	 rightStickRadius = 32 * scale;
@@ -633,10 +668,24 @@ void ControllerOverlay::RenderImGui() {
 		}
 	}
 
+	/* ADD TEXT FOR COORDS OF LEFT AND RIGHT STICK */
+	drawList->AddText(ImGui::GetFont(),
+										9 * scale,
+										ImVec2{leftStickCenter.x - leftStickRadius + (6 * scale),
+													 leftStickCenter.y + leftStickRadius - (scale == 2 ? 10 : 2)},
+										WHITE,
+										std::format("{: 0.3f} {: 0.3f}", lstickx, lsticky).c_str());
+	drawList->AddText(ImGui::GetFont(),
+										9 * scale,
+										ImVec2{rightStickCenter.x - rightStickRadius + (6 * scale),
+													 rightStickCenter.y + rightStickRadius - (scale == 2 ? 10 : 2)},
+										WHITE,
+										std::format("{: 0.3f} {: 0.3f}", rstickx, rsticky).c_str());
+	/* FINISH ADDING TEXT FOR COORDS OF LEFT AND RIGHT STICK */
+
 	if (size == 1) {
 		ImGui::PopFont();
 	}
-
 	ImGui::PopStyleVar();
 
 	ImGui::End();
