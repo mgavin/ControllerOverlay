@@ -1,7 +1,7 @@
 #include "ControllerOverlay.h"
 #include <format>
 
-BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.7.2.mg", 0)
+BAKKESMOD_PLUGIN(ControllerOverlay, "Controller Overlay", "1.8.0.mg", 0)
 
 /*
 				https://docs.unrealengine.com/udk/Three/KeyBinds.html
@@ -46,6 +46,7 @@ void ControllerOverlay::onLoad() {
 	cvarManager->removeCvar("controllerType");
 	cvarManager->removeCvar("controllerSize");
 	cvarManager->removeCvar("controllerLockOverlayPosition");
+	cvarManager->removeCvar("controllerOverlayShouldBlockInputs");
 
 	gameWrapper->SetTimeout(
 		[this](GameWrapper * gameWrapper) { cvarManager->executeCommand("togglemenu " + GetMenuName()); }, 1);
@@ -95,6 +96,12 @@ void ControllerOverlay::onLoad() {
 	cvarManager->registerCvar("controllerLockOverlayPosition", "false")
 		.addOnValueChanged([this](std::string old, CVarWrapper now) {
 			overlayPositionLocked = now.getBoolValue();
+			writeCfg();
+		});
+
+	cvarManager->registerCvar("controllerOverlayShouldBlockInputs", "false")
+		.addOnValueChanged([this](std::string old, CVarWrapper now) {
+			overlayShouldBlockInputs = now.getBoolValue();
 			writeCfg();
 		});
 
@@ -151,9 +158,7 @@ void ControllerOverlay::onLoad() {
 	cvarManager->registerCvar("controllerSize", "0").addOnValueChanged([this](std::string old, CVarWrapper now) {
 		if (now.getIntValue() == 0 || now.getIntValue() == 1) {
 			size = now.getIntValue();
-		}
-
-		else {
+		} else {
 			size = 0;
 		}
 
@@ -162,9 +167,7 @@ void ControllerOverlay::onLoad() {
 
 	if (std::ifstream(configurationFilePath)) {
 		cvarManager->loadCfg(configurationFilePath);
-	}
-
-	else {
+	} else {
 		cvarManager->getCvar("controllerType").notify();
 	}
 
@@ -202,7 +205,8 @@ void ControllerOverlay::writeCfg() {
 	configurationFile << "controllerSize \"" + std::to_string(size) + "\"";
 	configurationFile << "\n";
 	configurationFile << "controllerLockOverlayPosition \"" + std::to_string(overlayPositionLocked) + "\"";
-
+	configurationFile << "\n";
+	configurationFile << "controllerOverlayShouldBlockInputs \"" + std::to_string(overlayShouldBlockInputs) + "\"";
 	configurationFile.close();
 }
 
@@ -246,6 +250,14 @@ void ControllerOverlay::onTick(std::string eventName) {
 				lsticky = -1.0f * static_cast<float>(xboxControllerState.Gamepad.sThumbLY) / SHRT_MAX;
 			}
 		}
+	}
+}
+
+void ControllerOverlay::RenderSettings() {
+	CVarWrapper block_inputs_q = cvarManager->getCvar("controllerOverlayShouldBlockInputs");
+	bool				block_inputs_b = block_inputs_q.getBoolValue();
+	if (ImGui::Checkbox("Block inputs from Controller Overlay?", &block_inputs_b)) {
+		block_inputs_q.setValue(block_inputs_b);
 	}
 }
 
@@ -323,6 +335,10 @@ void ControllerOverlay::RenderImGui() {
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize;
 	if (overlayPositionLocked) {
 		windowFlags |= ImGuiWindowFlags_NoMove;
+	}
+
+	if (overlayShouldBlockInputs) {
+		windowFlags |= ImGuiWindowFlags_NoInputs;
 	}
 
 	if (!titleBar) {
@@ -696,6 +712,10 @@ std::string ControllerOverlay::GetMenuName() {
 }
 
 std::string ControllerOverlay::GetMenuTitle() {
+	return "Controller Overlay";
+}
+
+std::string ControllerOverlay::GetPluginName() {
 	return "Controller Overlay";
 }
 

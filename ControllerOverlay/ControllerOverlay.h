@@ -3,6 +3,7 @@
 #include <format>
 #include <fstream>
 
+#include "bakkesmod/plugin/PluginSettingsWindow.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
 #include "bakkesmod/wrappers/GameWrapper.h"
@@ -38,7 +39,10 @@ struct Input {
 	std::string name;
 };
 
-class ControllerOverlay : public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginWindow {
+class ControllerOverlay :
+		public BakkesMod::Plugin::BakkesModPlugin,
+		public BakkesMod::Plugin::PluginWindow,
+		public BakkesMod::Plugin::PluginSettingsWindow {
 public:
 	void onLoad();
 	void onUnload();
@@ -49,17 +53,20 @@ public:
 
 	void				Render();
 	void				RenderImGui();
+	void				RenderSettings();
 	std::string GetMenuName();
 	std::string GetMenuTitle();
+	std::string GetPluginName();
 	void				SetImGuiContext(uintptr_t ctx);
 	bool				ShouldBlockInput();
 	bool				IsActiveOverlay();
 	void				OnOpen();
 	void				OnClose();
 
-	bool renderControllerOverlay = false;
-	bool renderSettings					 = false;
-	bool overlayPositionLocked	 = false;
+	bool renderControllerOverlay	= false;
+	bool renderSettings						= false;
+	bool overlayPositionLocked		= false;
+	bool overlayShouldBlockInputs = false;
 
 	// 	std::string configurationFilePath = std::string(BAKKESMOD_DIR) + "/cfg/controlleroverlay.cfg";
 	std::string configurationFilePath = gameWrapper->GetBakkesModPath().string() + "/cfg/controlleroverlay.cfg";

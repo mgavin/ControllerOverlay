@@ -51,7 +51,7 @@
       <AdditionalDependencies>xinput.lib;dinput8.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>C:\Users\matthew\AppData\Roaming\bakkesmod\bakkesmod\bakkesmodsdk\bakkesmod-patch.exe -p DmaHhkK9TQJ5d1gL "$(TargetPath)"</Command>
+      <Command>C:\Users\matthew\AppData\Roaming\bakkesmod\bakkesmod\bakkesmodsdk\bakkesmod-patch.exe -p Rv9GU5j4DWTKX2jO "$(TargetPath)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
